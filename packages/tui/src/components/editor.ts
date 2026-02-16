@@ -957,7 +957,15 @@ export class Editor implements Component, Focusable {
 					this.tryTriggerAutocomplete();
 				}
 			}
-			// Also auto-trigger when typing letters in a slash command context
+			// Auto-trigger for prefix command characters (e.g. #) at start of message
+			else if (this.isAtStartOfMessage()) {
+				const currentLine = this.state.lines[this.state.cursorLine] || "";
+				const textBeforeCursor = currentLine.slice(0, this.state.cursorCol);
+				if (this.isInPrefixCommandContext(textBeforeCursor)) {
+					this.tryTriggerAutocomplete();
+				}
+			}
+			// Also auto-trigger when typing letters in a slash command or prefix command context
 			else if (/[a-zA-Z0-9.\-_]/.test(char)) {
 				const currentLine = this.state.lines[this.state.cursorLine] || "";
 				const textBeforeCursor = currentLine.slice(0, this.state.cursorCol);
@@ -967,6 +975,10 @@ export class Editor implements Component, Focusable {
 				}
 				// Check if we're in an @ file reference context
 				else if (textBeforeCursor.match(/(?:^|[\s])@[^\s]*$/)) {
+					this.tryTriggerAutocomplete();
+				}
+				// Check if we're in a prefix command context (e.g. #exp → fuzzy match)
+				else if (this.isInPrefixCommandContext(textBeforeCursor)) {
 					this.tryTriggerAutocomplete();
 				}
 			}
@@ -1864,6 +1876,14 @@ export class Editor implements Component, Focusable {
 
 	private isInSlashCommandContext(textBeforeCursor: string): boolean {
 		return this.isSlashMenuAllowed() && textBeforeCursor.trimStart().startsWith("/");
+	}
+
+	/** Check if we're typing a prefix command (e.g. #agent). */
+	private isInPrefixCommandContext(textBeforeCursor: string): boolean {
+		const provider = this.autocompleteProvider as { prefixGroups?: { prefix: string }[] } | undefined;
+		if (!provider?.prefixGroups) return false;
+		const trimmed = textBeforeCursor.trimStart();
+		return provider.prefixGroups.some((group) => trimmed.startsWith(group.prefix));
 	}
 
 	// Autocomplete methods
