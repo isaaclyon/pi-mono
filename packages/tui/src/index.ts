@@ -5,6 +5,7 @@ export {
 	type AutocompleteItem,
 	type AutocompleteProvider,
 	CombinedAutocompleteProvider,
+	type PrefixCommandGroup,
 	type SlashCommand,
 } from "./autocomplete.js";
 // Components

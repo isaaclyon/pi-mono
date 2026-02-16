@@ -902,6 +902,14 @@ export interface RegisteredCommand {
 	handler: (args: string, ctx: ExtensionCommandContext) => Promise<void>;
 }
 
+export interface RegisteredPrefixCommand {
+	prefix: string;
+	name: string;
+	description?: string;
+	getArgumentCompletions?: (argumentPrefix: string) => AutocompleteItem[] | null;
+	handler: (args: string, ctx: ExtensionCommandContext) => Promise<void>;
+}
+
 // ============================================================================
 // Extension API
 // ============================================================================
@@ -966,6 +974,9 @@ export interface ExtensionAPI {
 
 	/** Register a custom command. */
 	registerCommand(name: string, options: Omit<RegisteredCommand, "name">): void;
+
+	/** Register a prefix command (e.g. prefix="#" name="worker" → user types "#worker prompt"). */
+	registerPrefixCommand(prefix: string, name: string, options: Omit<RegisteredPrefixCommand, "prefix" | "name">): void;
 
 	/** Register a keyboard shortcut. */
 	registerShortcut(
@@ -1317,6 +1328,7 @@ export interface Extension {
 	tools: Map<string, RegisteredTool>;
 	messageRenderers: Map<string, MessageRenderer>;
 	commands: Map<string, RegisteredCommand>;
+	prefixCommands: Map<string, RegisteredPrefixCommand>;
 	flags: Map<string, ExtensionFlag>;
 	shortcuts: Map<KeyId, ExtensionShortcut>;
 }

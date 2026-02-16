@@ -34,6 +34,7 @@ import type {
 	InputSource,
 	MessageRenderer,
 	RegisteredCommand,
+	RegisteredPrefixCommand,
 	RegisteredTool,
 	ResourcesDiscoverEvent,
 	ResourcesDiscoverResult,
@@ -462,6 +463,33 @@ export class ExtensionRunner {
 			if (command) {
 				return command;
 			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Get all registered prefix commands, grouped by prefix.
+	 */
+	getPrefixCommands(): Map<string, RegisteredPrefixCommand[]> {
+		const groups = new Map<string, RegisteredPrefixCommand[]>();
+		for (const ext of this.extensions) {
+			for (const cmd of ext.prefixCommands.values()) {
+				const existing = groups.get(cmd.prefix) ?? [];
+				existing.push(cmd);
+				groups.set(cmd.prefix, existing);
+			}
+		}
+		return groups;
+	}
+
+	/**
+	 * Find a prefix command by prefix and name.
+	 */
+	getPrefixCommand(prefix: string, name: string): RegisteredPrefixCommand | undefined {
+		for (const ext of this.extensions) {
+			const key = `${prefix}:${name}`;
+			const cmd = ext.prefixCommands.get(key);
+			if (cmd) return cmd;
 		}
 		return undefined;
 	}

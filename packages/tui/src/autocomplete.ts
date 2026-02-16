@@ -159,6 +159,11 @@ export interface SlashCommand {
 	getArgumentCompletions?(argumentPrefix: string): AutocompleteItem[] | null;
 }
 
+export interface PrefixCommandGroup {
+	prefix: string;
+	commands: SlashCommand[];
+}
+
 export interface AutocompleteProvider {
 	// Get autocomplete suggestions for current text/cursor position
 	// Returns null if no suggestions available
@@ -191,6 +196,7 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 	private commands: (SlashCommand | AutocompleteItem)[];
 	private basePath: string;
 	private fdPath: string | null;
+	public prefixGroups: PrefixCommandGroup[];
 
 	constructor(
 		commands: (SlashCommand | AutocompleteItem)[] = [],
@@ -200,6 +206,11 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 		this.commands = commands;
 		this.basePath = basePath;
 		this.fdPath = fdPath;
+		this.prefixGroups = [];
+	}
+
+	setPrefixGroups(groups: PrefixCommandGroup[]): void {
+		this.prefixGroups = groups;
 	}
 
 	getSuggestions(
@@ -209,6 +220,38 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 	): { items: AutocompleteItem[]; prefix: string } | null {
 		const currentLine = lines[cursorLine] || "";
 		const textBeforeCursor = currentLine.slice(0, cursorCol);
+
+		// Check for prefix command groups (e.g. #agent)
+		for (const group of this.prefixGroups) {
+			if (textBeforeCursor.startsWith(group.prefix)) {
+				const spaceIndex = textBeforeCursor.indexOf(" ");
+				if (spaceIndex === -1) {
+					// No space yet — complete command names with fuzzy matching
+					const typed = textBeforeCursor.slice(group.prefix.length);
+					const commandItems = group.commands.map((cmd) => ({
+						name: cmd.name,
+						label: cmd.name,
+						description: cmd.description,
+					}));
+					const filtered = fuzzyFilter(commandItems, typed, (item) => item.name).map((item) => ({
+						value: item.name,
+						label: item.label,
+						...(item.description && { description: item.description }),
+					}));
+					if (filtered.length === 0) return null;
+					return { items: filtered, prefix: textBeforeCursor };
+				} else {
+					// Space found — complete command arguments
+					const commandName = textBeforeCursor.slice(group.prefix.length, spaceIndex);
+					const argumentText = textBeforeCursor.slice(spaceIndex + 1);
+					const command = group.commands.find((cmd) => cmd.name === commandName);
+					if (!command?.getArgumentCompletions) return null;
+					const argumentSuggestions = command.getArgumentCompletions(argumentText);
+					if (!argumentSuggestions || argumentSuggestions.length === 0) return null;
+					return { items: argumentSuggestions, prefix: argumentText };
+				}
+			}
+		}
 
 		// Check for @ file reference (fuzzy search) - must be after a delimiter or at start
 		const atPrefix = this.extractAtPrefix(textBeforeCursor);
@@ -316,6 +359,21 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 		const hasTrailingQuoteInItem = item.value.endsWith('"');
 		const adjustedAfterCursor =
 			isQuotedPrefix && hasTrailingQuoteInItem && hasLeadingQuoteAfterCursor ? afterCursor.slice(1) : afterCursor;
+
+		// Check if we're completing a prefix command (e.g. #agent)
+		for (const group of this.prefixGroups) {
+			const isPrefixCommand = prefix.startsWith(group.prefix) && beforePrefix.trim() === "";
+			if (isPrefixCommand) {
+				const newLine = `${beforePrefix}${group.prefix}${item.value} ${adjustedAfterCursor}`;
+				const newLines = [...lines];
+				newLines[cursorLine] = newLine;
+				return {
+					lines: newLines,
+					cursorLine,
+					cursorCol: beforePrefix.length + group.prefix.length + item.value.length + 1,
+				};
+			}
+		}
 
 		// Check if we're completing a slash command (prefix starts with "/" but NOT a file path)
 		// Slash commands are at the start of the line and don't contain path separators after the first /

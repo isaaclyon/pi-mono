@@ -34,6 +34,7 @@ import type {
 	MessageRenderer,
 	ProviderConfig,
 	RegisteredCommand,
+	RegisteredPrefixCommand,
 	ToolDefinition,
 } from "./types.js";
 
@@ -158,6 +159,15 @@ function createExtensionAPI(
 			extension.commands.set(name, { name, ...options });
 		},
 
+		registerPrefixCommand(
+			prefix: string,
+			name: string,
+			options: Omit<RegisteredPrefixCommand, "prefix" | "name">,
+		): void {
+			const key = `${prefix}:${name}`;
+			extension.prefixCommands.set(key, { prefix, name, ...options });
+		},
+
 		registerShortcut(
 			shortcut: KeyId,
 			options: {
@@ -280,6 +290,7 @@ function createExtension(extensionPath: string, resolvedPath: string): Extension
 		tools: new Map(),
 		messageRenderers: new Map(),
 		commands: new Map(),
+		prefixCommands: new Map(),
 		flags: new Map(),
 		shortcuts: new Map(),
 	};

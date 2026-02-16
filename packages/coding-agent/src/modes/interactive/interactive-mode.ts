@@ -25,6 +25,7 @@ import type {
 	MarkdownTheme,
 	OverlayHandle,
 	OverlayOptions,
+	PrefixCommandGroup,
 	SlashCommand,
 } from "@mariozechner/pi-tui";
 import {
@@ -359,6 +360,24 @@ export class InteractiveMode {
 			process.cwd(),
 			fdPath,
 		);
+
+		// Wire prefix command groups (e.g. #agent) into autocomplete
+		const prefixCommands = this.session.extensionRunner?.getPrefixCommands();
+		if (prefixCommands && prefixCommands.size > 0) {
+			const prefixGroups: PrefixCommandGroup[] = [];
+			for (const [prefix, cmds] of prefixCommands) {
+				prefixGroups.push({
+					prefix,
+					commands: cmds.map((cmd) => ({
+						name: cmd.name,
+						description: cmd.description,
+						getArgumentCompletions: cmd.getArgumentCompletions,
+					})),
+				});
+			}
+			this.autocompleteProvider.setPrefixGroups(prefixGroups);
+		}
+
 		this.defaultEditor.setAutocompleteProvider(this.autocompleteProvider);
 		if (this.editor !== this.defaultEditor) {
 			this.editor.setAutocompleteProvider?.(this.autocompleteProvider);
@@ -1992,6 +2011,38 @@ export class InteractiveMode {
 					this.isBashMode = false;
 					this.updateEditorBorderColor();
 					return;
+				}
+			}
+
+			// Handle prefix commands (e.g. #agent prompt)
+			{
+				const extensionRunner = this.session.extensionRunner;
+				if (extensionRunner) {
+					const prefixCommands = extensionRunner.getPrefixCommands();
+					for (const [prefix, _cmds] of prefixCommands) {
+						if (text.startsWith(prefix)) {
+							const spaceIndex = text.indexOf(" ");
+							const commandName =
+								spaceIndex === -1 ? text.slice(prefix.length) : text.slice(prefix.length, spaceIndex);
+							const args = spaceIndex === -1 ? "" : text.slice(spaceIndex + 1);
+							const cmd = extensionRunner.getPrefixCommand(prefix, commandName);
+							if (cmd) {
+								this.editor.addToHistory?.(text);
+								this.editor.setText("");
+								try {
+									const ctx = extensionRunner.createCommandContext();
+									await cmd.handler(args, ctx);
+								} catch (err) {
+									extensionRunner.emitError({
+										extensionPath: `prefix-command:${prefix}${commandName}`,
+										event: "prefix_command",
+										error: err instanceof Error ? err.message : String(err),
+									});
+								}
+								return;
+							}
+						}
+					}
 				}
 			}
 
