@@ -60,6 +60,7 @@ import type {
 	ExtensionUIContext,
 	ExtensionUIDialogOptions,
 	ExtensionWidgetOptions,
+	RegisteredPrefixCommand,
 } from "../../core/extensions/index.js";
 import { FooterDataProvider, type ReadonlyFooterDataProvider } from "../../core/footer-data-provider.js";
 import { type AppAction, KeybindingsManager } from "../../core/keybindings.js";
@@ -2016,33 +2017,12 @@ export class InteractiveMode {
 
 			// Handle prefix commands (e.g. #agent prompt)
 			{
-				const extensionRunner = this.session.extensionRunner;
-				if (extensionRunner) {
-					const prefixCommands = extensionRunner.getPrefixCommands();
-					for (const [prefix, _cmds] of prefixCommands) {
-						if (text.startsWith(prefix)) {
-							const spaceIndex = text.indexOf(" ");
-							const commandName =
-								spaceIndex === -1 ? text.slice(prefix.length) : text.slice(prefix.length, spaceIndex);
-							const args = spaceIndex === -1 ? "" : text.slice(spaceIndex + 1);
-							const cmd = extensionRunner.getPrefixCommand(prefix, commandName);
-							if (cmd) {
-								this.editor.addToHistory?.(text);
-								this.editor.setText("");
-								try {
-									const ctx = extensionRunner.createCommandContext();
-									await cmd.handler(args, ctx);
-								} catch (err) {
-									extensionRunner.emitError({
-										extensionPath: `prefix-command:${prefix}${commandName}`,
-										event: "prefix_command",
-										error: err instanceof Error ? err.message : String(err),
-									});
-								}
-								return;
-							}
-						}
-					}
+				const prefixCmd = this.findPrefixCommand(text);
+				if (prefixCmd) {
+					this.editor.addToHistory?.(text);
+					this.editor.setText("");
+					await this.executePrefixCommand(prefixCmd.cmd, prefixCmd.args, prefixCmd.prefix, prefixCmd.commandName);
+					return;
 				}
 			}
 
@@ -2965,6 +2945,46 @@ export class InteractiveMode {
 		const spaceIndex = text.indexOf(" ");
 		const commandName = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
 		return !!extensionRunner.getCommand(commandName);
+	}
+
+	/** Parse text into a prefix command match, or return undefined if no match. */
+	private findPrefixCommand(
+		text: string,
+	): { cmd: RegisteredPrefixCommand; prefix: string; commandName: string; args: string } | undefined {
+		const extensionRunner = this.session.extensionRunner;
+		if (!extensionRunner) return undefined;
+
+		for (const [prefix] of extensionRunner.getPrefixCommands()) {
+			if (!text.startsWith(prefix)) continue;
+			const afterPrefix = text.slice(prefix.length);
+			const spaceIndex = afterPrefix.indexOf(" ");
+			const commandName = spaceIndex === -1 ? afterPrefix : afterPrefix.slice(0, spaceIndex);
+			const args = spaceIndex === -1 ? "" : afterPrefix.slice(spaceIndex + 1);
+			const cmd = extensionRunner.getPrefixCommand(prefix, commandName);
+			if (cmd) return { cmd, prefix, commandName, args };
+		}
+		return undefined;
+	}
+
+	/** Execute a matched prefix command with error handling. */
+	private async executePrefixCommand(
+		cmd: RegisteredPrefixCommand,
+		args: string,
+		prefix: string,
+		commandName: string,
+	): Promise<void> {
+		const extensionRunner = this.session.extensionRunner;
+		if (!extensionRunner) return;
+		try {
+			const ctx = extensionRunner.createCommandContext();
+			await cmd.handler(args, ctx);
+		} catch (err) {
+			extensionRunner.emitError({
+				extensionPath: `prefix-command:${prefix}${commandName}`,
+				event: "prefix_command",
+				error: err instanceof Error ? err.message : String(err),
+			});
+		}
 	}
 
 	private async flushCompactionQueue(options?: { willRetry?: boolean }): Promise<void> {

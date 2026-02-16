@@ -49,6 +49,7 @@ import type {
 	UserBashEvent,
 	UserBashEventResult,
 } from "./types.js";
+import { getPrefixCommandKey } from "./types.js";
 
 // Keybindings for these actions cannot be overridden by extensions
 const RESERVED_ACTIONS_FOR_EXTENSION_CONFLICTS: ReadonlyArray<KeyAction> = [
@@ -486,8 +487,8 @@ export class ExtensionRunner {
 	 * Find a prefix command by prefix and name.
 	 */
 	getPrefixCommand(prefix: string, name: string): RegisteredPrefixCommand | undefined {
+		const key = getPrefixCommandKey(prefix, name);
 		for (const ext of this.extensions) {
-			const key = `${prefix}:${name}`;
 			const cmd = ext.prefixCommands.get(key);
 			if (cmd) return cmd;
 		}

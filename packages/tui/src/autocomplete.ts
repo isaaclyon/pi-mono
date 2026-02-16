@@ -224,32 +224,7 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 		// Check for prefix command groups (e.g. #agent)
 		for (const group of this.prefixGroups) {
 			if (textBeforeCursor.startsWith(group.prefix)) {
-				const spaceIndex = textBeforeCursor.indexOf(" ");
-				if (spaceIndex === -1) {
-					// No space yet — complete command names with fuzzy matching
-					const typed = textBeforeCursor.slice(group.prefix.length);
-					const commandItems = group.commands.map((cmd) => ({
-						name: cmd.name,
-						label: cmd.name,
-						description: cmd.description,
-					}));
-					const filtered = fuzzyFilter(commandItems, typed, (item) => item.name).map((item) => ({
-						value: item.name,
-						label: item.label,
-						...(item.description && { description: item.description }),
-					}));
-					if (filtered.length === 0) return null;
-					return { items: filtered, prefix: textBeforeCursor };
-				} else {
-					// Space found — complete command arguments
-					const commandName = textBeforeCursor.slice(group.prefix.length, spaceIndex);
-					const argumentText = textBeforeCursor.slice(spaceIndex + 1);
-					const command = group.commands.find((cmd) => cmd.name === commandName);
-					if (!command?.getArgumentCompletions) return null;
-					const argumentSuggestions = command.getArgumentCompletions(argumentText);
-					if (!argumentSuggestions || argumentSuggestions.length === 0) return null;
-					return { items: argumentSuggestions, prefix: argumentText };
-				}
+				return this.getPrefixCommandSuggestions(group, textBeforeCursor);
 			}
 		}
 
@@ -342,6 +317,40 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 		}
 
 		return null;
+	}
+
+	/** Get autocomplete suggestions for a prefix command group. */
+	private getPrefixCommandSuggestions(
+		group: PrefixCommandGroup,
+		textBeforeCursor: string,
+	): { items: AutocompleteItem[]; prefix: string } | null {
+		const afterPrefix = textBeforeCursor.slice(group.prefix.length);
+		const spaceIndex = afterPrefix.indexOf(" ");
+
+		if (spaceIndex === -1) {
+			// No space yet — complete command names with fuzzy matching
+			const commandItems = group.commands.map((cmd) => ({
+				name: cmd.name,
+				label: cmd.name,
+				description: cmd.description,
+			}));
+			const filtered = fuzzyFilter(commandItems, afterPrefix, (item) => item.name).map((item) => ({
+				value: item.name,
+				label: item.label,
+				...(item.description && { description: item.description }),
+			}));
+			if (filtered.length === 0) return null;
+			return { items: filtered, prefix: textBeforeCursor };
+		}
+
+		// Space found — complete command arguments
+		const commandName = afterPrefix.slice(0, spaceIndex);
+		const argumentText = afterPrefix.slice(spaceIndex + 1);
+		const command = group.commands.find((cmd) => cmd.name === commandName);
+		if (!command?.getArgumentCompletions) return null;
+		const argumentSuggestions = command.getArgumentCompletions(argumentText);
+		if (!argumentSuggestions || argumentSuggestions.length === 0) return null;
+		return { items: argumentSuggestions, prefix: argumentText };
 	}
 
 	applyCompletion(

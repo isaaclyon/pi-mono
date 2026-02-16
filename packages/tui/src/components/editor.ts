@@ -943,44 +943,8 @@ export class Editor implements Component, Focusable {
 
 		// Check if we should trigger or update autocomplete
 		if (!this.autocompleteState) {
-			// Auto-trigger for "/" at the start of a line (slash commands)
-			if (char === "/" && this.isAtStartOfMessage()) {
+			if (this.shouldAutoTriggerAutocomplete(char)) {
 				this.tryTriggerAutocomplete();
-			}
-			// Auto-trigger for "@" file reference (fuzzy search)
-			else if (char === "@") {
-				const currentLine = this.state.lines[this.state.cursorLine] || "";
-				const textBeforeCursor = currentLine.slice(0, this.state.cursorCol);
-				// Only trigger if @ is after whitespace or at start of line
-				const charBeforeAt = textBeforeCursor[textBeforeCursor.length - 2];
-				if (textBeforeCursor.length === 1 || charBeforeAt === " " || charBeforeAt === "\t") {
-					this.tryTriggerAutocomplete();
-				}
-			}
-			// Auto-trigger for prefix command characters (e.g. #) at start of message
-			else if (this.isAtStartOfMessage()) {
-				const currentLine = this.state.lines[this.state.cursorLine] || "";
-				const textBeforeCursor = currentLine.slice(0, this.state.cursorCol);
-				if (this.isInPrefixCommandContext(textBeforeCursor)) {
-					this.tryTriggerAutocomplete();
-				}
-			}
-			// Also auto-trigger when typing letters in a slash command or prefix command context
-			else if (/[a-zA-Z0-9.\-_]/.test(char)) {
-				const currentLine = this.state.lines[this.state.cursorLine] || "";
-				const textBeforeCursor = currentLine.slice(0, this.state.cursorCol);
-				// Check if we're in a slash command (with or without space for arguments)
-				if (this.isInSlashCommandContext(textBeforeCursor)) {
-					this.tryTriggerAutocomplete();
-				}
-				// Check if we're in an @ file reference context
-				else if (textBeforeCursor.match(/(?:^|[\s])@[^\s]*$/)) {
-					this.tryTriggerAutocomplete();
-				}
-				// Check if we're in a prefix command context (e.g. #exp → fuzzy match)
-				else if (this.isInPrefixCommandContext(textBeforeCursor)) {
-					this.tryTriggerAutocomplete();
-				}
 			}
 		} else {
 			this.updateAutocomplete();
@@ -1872,6 +1836,35 @@ export class Editor implements Component, Focusable {
 		const currentLine = this.state.lines[this.state.cursorLine] || "";
 		const beforeCursor = currentLine.slice(0, this.state.cursorCol);
 		return beforeCursor.trim() === "" || beforeCursor.trim() === "/";
+	}
+
+	/** Decide whether a newly typed character should auto-trigger autocomplete. */
+	private shouldAutoTriggerAutocomplete(char: string): boolean {
+		const currentLine = this.state.lines[this.state.cursorLine] || "";
+		const textBeforeCursor = currentLine.slice(0, this.state.cursorCol);
+
+		// "/" at the start of a line → slash commands
+		if (char === "/" && this.isAtStartOfMessage()) return true;
+
+		// "@" after whitespace or at start of line → file reference
+		if (char === "@") {
+			const charBefore = textBeforeCursor[textBeforeCursor.length - 2];
+			return textBeforeCursor.length === 1 || charBefore === " " || charBefore === "\t";
+		}
+
+		// Prefix command character (e.g. #) at start of message
+		if (this.isAtStartOfMessage() && this.isInPrefixCommandContext(textBeforeCursor)) return true;
+
+		// Letters/digits while already in a command context
+		if (/[a-zA-Z0-9.\-_]/.test(char)) {
+			return (
+				this.isInSlashCommandContext(textBeforeCursor) ||
+				!!textBeforeCursor.match(/(?:^|[\s])@[^\s]*$/) ||
+				this.isInPrefixCommandContext(textBeforeCursor)
+			);
+		}
+
+		return false;
 	}
 
 	private isInSlashCommandContext(textBeforeCursor: string): boolean {

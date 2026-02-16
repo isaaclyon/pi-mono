@@ -32,11 +32,12 @@ import type {
 	ExtensionRuntime,
 	LoadExtensionsResult,
 	MessageRenderer,
+	PrefixCommandOptions,
 	ProviderConfig,
 	RegisteredCommand,
-	RegisteredPrefixCommand,
 	ToolDefinition,
 } from "./types.js";
+import { getPrefixCommandKey } from "./types.js";
 
 /** Modules available to extensions via virtualModules (for compiled Bun binary) */
 const VIRTUAL_MODULES: Record<string, unknown> = {
@@ -159,13 +160,8 @@ function createExtensionAPI(
 			extension.commands.set(name, { name, ...options });
 		},
 
-		registerPrefixCommand(
-			prefix: string,
-			name: string,
-			options: Omit<RegisteredPrefixCommand, "prefix" | "name">,
-		): void {
-			const key = `${prefix}:${name}`;
-			extension.prefixCommands.set(key, { prefix, name, ...options });
+		registerPrefixCommand(prefix: string, name: string, options: PrefixCommandOptions): void {
+			extension.prefixCommands.set(getPrefixCommandKey(prefix, name), { prefix, name, ...options });
 		},
 
 		registerShortcut(

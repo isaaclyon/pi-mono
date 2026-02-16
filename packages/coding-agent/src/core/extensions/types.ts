@@ -910,6 +910,18 @@ export interface RegisteredPrefixCommand {
 	handler: (args: string, ctx: ExtensionCommandContext) => Promise<void>;
 }
 
+/** Options for registering a prefix command via pi.registerPrefixCommand(). */
+export interface PrefixCommandOptions {
+	description?: string;
+	getArgumentCompletions?: (argumentPrefix: string) => AutocompleteItem[] | null;
+	handler: (args: string, ctx: ExtensionCommandContext) => Promise<void>;
+}
+
+/** Build the lookup key for a prefix command. */
+export function getPrefixCommandKey(prefix: string, name: string): string {
+	return `${prefix}:${name}`;
+}
+
 // ============================================================================
 // Extension API
 // ============================================================================
@@ -976,7 +988,7 @@ export interface ExtensionAPI {
 	registerCommand(name: string, options: Omit<RegisteredCommand, "name">): void;
 
 	/** Register a prefix command (e.g. prefix="#" name="worker" → user types "#worker prompt"). */
-	registerPrefixCommand(prefix: string, name: string, options: Omit<RegisteredPrefixCommand, "prefix" | "name">): void;
+	registerPrefixCommand(prefix: string, name: string, options: PrefixCommandOptions): void;
 
 	/** Register a keyboard shortcut. */
 	registerShortcut(

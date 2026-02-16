@@ -90,6 +90,8 @@ export type {
 	MessageUpdateEvent,
 	ModelSelectEvent,
 	ModelSelectSource,
+	// Prefix Commands
+	PrefixCommandOptions,
 	// Provider Registration
 	ProviderConfig,
 	ProviderModelConfig,
@@ -97,6 +99,7 @@ export type {
 	ReadToolResultEvent,
 	// Commands
 	RegisteredCommand,
+	RegisteredPrefixCommand,
 	RegisteredTool,
 	// Events - Resources
 	ResourcesDiscoverEvent,
@@ -147,8 +150,10 @@ export type {
 	WriteToolCallEvent,
 	WriteToolResultEvent,
 } from "./types.js";
+// Prefix command utilities
 // Type guards
 export {
+	getPrefixCommandKey,
 	isBashToolResult,
 	isEditToolResult,
 	isFindToolResult,
